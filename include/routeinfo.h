@@ -7,7 +7,6 @@ namespace pol4b {
   class RouteInfo {
   public:
     RouteInfo() = default;
-    std::string name = "";
     IPv4Addr gateway;
     IPv4Addr destination;
     SubnetMask mask;

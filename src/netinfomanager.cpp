@@ -125,6 +125,7 @@ void NetInfoManager::load_routeinfo() {
         rtattr *attr = (rtattr *)RTM_RTA(rtm);
         int length = RTM_PAYLOAD(nh);
         uint32_t tmp = 0;
+        string ifname = "";
         RouteInfo route_info;
         for (; RTA_OK(attr, length); attr = RTA_NEXT(attr, length)) {
           switch(attr->rta_type) {
@@ -145,30 +146,32 @@ void NetInfoManager::load_routeinfo() {
             break;
           case RTA_OIF:
             memcpy(&tmp, RTA_DATA(attr), sizeof(tmp));
-            route_info.name = interface_name[tmp];
+            ifname = interface_name[tmp];
             break;
           }
         }
-        routes.push_back(route_info);
+        routes[ifname].push_back(route_info);
       }
     }
   }
 }
 
-const unordered_map<string, NetInfo> &NetInfoManager::get_all_netinfo(bool reload) {
+const NetInfoMap &NetInfoManager::get_all_netinfo(bool reload) {
   if (reload || interfaces.size() < 1)
     load_netinfo();
   return interfaces;
 }
 
-const vector<RouteInfo> &NetInfoManager::get_all_routeinfo(bool reload) {
+const RouteInfoMap &NetInfoManager::get_all_routeinfo(bool reload) {
   if (reload || routes.size() < 1)
     load_routeinfo();
   return routes;
 }
 
 const NetInfo *NetInfoManager::get_netinfo(string name) {
-  if (interfaces.size() < 1)
+  if (name.empty())
+    return nullptr;
+  else if (interfaces.size() < 1)
     load_netinfo();
   auto netinfo = interfaces.find(name);
   if (netinfo == interfaces.end())
@@ -176,47 +179,57 @@ const NetInfo *NetInfoManager::get_netinfo(string name) {
   return &netinfo->second;
 }
 
-const IPv4Addr * NetInfoManager::get_gateway_ip(string name) {
+const IPv4Addr *NetInfoManager::get_gateway_ip(string name) {
   IPv4Addr *gateway_ip = nullptr;
   if (name.empty())
     return gateway_ip;
-
-  for (auto &route : routes) {
-      if (route.name == name && route.gateway != 0) {
-        gateway_ip = &route.gateway;
-        break;
-      }
+  else if (routes.size() < 1)
+    load_routeinfo();
+  for (auto &route : routes[name]) {
+    if (route.gateway != 0) {
+      gateway_ip = &route.gateway;
+      break;
+    }
   }
   return gateway_ip;
 }
 
-const RouteInfo *NetInfoManager::get_best_routeinfo(IPv4Addr destination) {
+RouteInfoWithName NetInfoManager::get_best_routeinfo(IPv4Addr destination) {
+  string ifname = "";
   const RouteInfo *best_route = nullptr;
   int longest_prefix = -1;
-
   if (routes.size() < 1)
     load_routeinfo();
-
-  for (auto &route : routes) {
-    if ((destination & route.mask) == route.destination) {
-      int prefix_len = SubnetMask(route.mask).to_cidr();
-      if (prefix_len > longest_prefix || (prefix_len == longest_prefix &&
-        route.metric < best_route->metric)) {
-        longest_prefix = prefix_len;
-        best_route = &route;
+  for (auto &ifroute : routes) {
+    for (auto &route : ifroute.second) {
+      if ((destination & route.mask) == route.destination) {
+        int prefix_len = SubnetMask(route.mask).to_cidr();
+        if (prefix_len > longest_prefix || (prefix_len == longest_prefix &&
+          route.metric < best_route->metric)) {
+          longest_prefix = prefix_len;
+          ifname = ifroute.first;
+          best_route = &route;
+        }
       }
     }
   }
-  return best_route;
+  return make_pair(ifname, best_route);
 }
 
-const RouteInfo *NetInfoManager::get_default_routeinfo() {
+RouteInfoWithName NetInfoManager::get_default_routeinfo() {
+  string ifname = "";
   const RouteInfo *default_route = nullptr;
-  for (auto &route : routes) {
-    if ((uint32_t)route.destination == 0 && (uint32_t)route.mask == 0)
-      default_route = &route;
+  if (routes.size() < 1)
+    load_routeinfo();
+  for (auto &ifroute : routes) {
+    for (auto &route : ifroute.second) {
+      if ((uint32_t)route.destination == 0 && (uint32_t)route.mask == 0) {
+        ifname = ifroute.first;
+        default_route = &route;
+      }
+    }
   }
-  return default_route;
+  return make_pair(ifname, default_route);
 }
 
 string NetInfoManager::get_interface_name(int index) {
