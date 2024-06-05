@@ -194,6 +194,21 @@ const IPv4Addr *NetInfoManager::get_gateway_ip(string name) {
   return gateway_ip;
 }
 
+pair<IPv4Addr, IPv4Addr> NetInfoManager::get_ip_range(IPv4Addr ip, SubnetMask mask) {
+  return make_pair((ip & mask) + 1, (ip | ~mask) - 1);
+}
+
+pair<IPv4Addr, IPv4Addr> NetInfoManager::get_ip_range(std::string name) {
+  if (name.empty())
+    throw invalid_argument("Empty interface name.");
+  else if (interfaces.size() < 1)
+    load_routeinfo();
+  auto interface = interfaces.find(name);
+  if (interface == interfaces.end())
+    throw invalid_argument("Invalid interface name.");
+  return get_ip_range(interface->second.ip, interface->second.mask);
+}
+
 RouteInfoWithName NetInfoManager::get_best_routeinfo(IPv4Addr destination) {
   string ifname = "";
   const RouteInfo *best_route = nullptr;
