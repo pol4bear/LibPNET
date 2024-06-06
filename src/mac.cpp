@@ -30,7 +30,7 @@ MACAddr::MACAddr(uint64_t addr) {
   init((uint8_t*)&addr, 6);
 }
 
-MACAddr::MACAddr(const char *addr) {
+MACAddr::MACAddr(string addr) {
   string tmp_addr = addr;
   tmp_addr.erase(remove(tmp_addr.begin(), tmp_addr.end(), '-'), tmp_addr.end());
   tmp_addr.erase(remove(tmp_addr.begin(), tmp_addr.end(), ':'), tmp_addr.end());

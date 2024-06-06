@@ -11,7 +11,7 @@ class MACAddr {
     MACAddr();
     MACAddr(uint8_t *addr, size_t len, bool is_network=false);
     MACAddr(uint64_t addr);
-    MACAddr(const char *addr);
+    MACAddr(std::string addr);
     operator std::string() const;
     operator uint64_t() const;
     MACAddr operator+=(int n);

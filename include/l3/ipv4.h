@@ -10,7 +10,7 @@ class IPv4Addr {
   public:
     IPv4Addr();
     IPv4Addr(uint32_t addr, bool is_network=false);
-    IPv4Addr(const char *addr);
+    IPv4Addr(std::string addr);
     operator std::string() const;
     operator uint32_t() const;
     IPv4Addr operator+=(int n);

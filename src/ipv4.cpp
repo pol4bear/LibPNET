@@ -18,9 +18,9 @@ IPv4Addr::IPv4Addr(uint32_t addr, bool is_network) {
     to_host_byte_order();
 }
 
-IPv4Addr::IPv4Addr(const char *addr) {
-  if (addr == nullptr)
-    return;
+IPv4Addr::IPv4Addr(string addr) {
+  if (addr.empty())
+    throw invalid_argument("Empty IP address.");
   int addr_len = strlen(addr);
   uint32_t tmp = 0;
   if (addr_len < 7 || addr_len > 15)
