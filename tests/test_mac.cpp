@@ -15,7 +15,7 @@ TEST(MACTest, BasicAssertions) {
   ASSERT_EQ((uint64_t)MACAddr("AA:BB:CC:DD:EE:FF"), 0xAABBCCDDEEFF);
   ASSERT_EQ((uint64_t)MACAddr("AA-BB-CC-DD-EE-FF"), 0xAABBCCDDEEFF);
   ASSERT_EQ((string)MACAddr(0xAABBCCDDEEFF), "AA:BB:CC:DD:EE:FF");
-  MACAddr a = "AA:BB:CC:DD:EE:FF";
+  MACAddr a("AA:BB:CC:DD:EE:FF");
   MACAddr b;
   a.copy((uint8_t*)&b, true);
   if (htonl(1) == 1)

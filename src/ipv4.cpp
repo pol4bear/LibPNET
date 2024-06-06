@@ -21,11 +21,10 @@ IPv4Addr::IPv4Addr(uint32_t addr, bool is_network) {
 IPv4Addr::IPv4Addr(string addr) {
   if (addr.empty())
     throw invalid_argument("Empty IP address.");
-  int addr_len = strlen(addr);
   uint32_t tmp = 0;
-  if (addr_len < 7 || addr_len > 15)
+  if (addr.size() < 7 || addr.size() > 15)
     throw invalid_argument("Address length must be between 7 and 15 characters.");
-  char *tmp_addr = strdup(addr);
+  char *tmp_addr = strdup(addr.c_str());
   if (tmp_addr == nullptr)
     throw bad_alloc();
   char *token = strtok(tmp_addr, ".");

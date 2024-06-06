@@ -1,4 +1,5 @@
 #include "netinfomanager.h"
+#include "l2/arp.h"
 #include <stdexcept>
 #include <memory.h>
 #include <sys/socket.h>
@@ -192,6 +193,16 @@ const IPv4Addr *NetInfoManager::get_gateway_ip(string name) {
     }
   }
   return gateway_ip;
+}
+
+NetInfo NetInfoManager::get_gateway_info(std::string name) {
+  NetInfo gateway_info;
+  auto gateway_ip = NetInfoManager::instance().get_gateway_ip(name);
+  if (gateway_ip == nullptr)
+    throw invalid_argument("Failed to get gateway IP address.");
+  gateway_info.ip = *gateway_ip;
+  gateway_info.mac = ARP::get_mac_addr(*gateway_ip);
+  return gateway_info;
 }
 
 pair<IPv4Addr, IPv4Addr> NetInfoManager::get_ip_range(IPv4Addr ip, SubnetMask mask) {

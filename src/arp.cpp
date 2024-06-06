@@ -132,16 +132,6 @@ MACAddr ARP::get_mac_addr(IPv4Addr ip_addr, int timeout) {
     return mac_addr;
 }
 
-NetInfo ARP::get_gateway_info(string if_name) {
-  NetInfo netinfo;
-  auto gateway_ip = NetInfoManager::instance().get_gateway_ip(if_name);
-  if (gateway_ip == nullptr)
-    throw invalid_argument("Failed to get gateway IP address.");
-  netinfo.ip = *gateway_ip;
-  netinfo.mac = ARP::get_mac_addr(*gateway_ip);
-  return netinfo;
-}
-
 ARP ARP::make_packet(MACAddr source_mac, MACAddr dest_mac,
   ARPHeader::Operation operation, MACAddr sender_mac, IPv4Addr sender_ip,
   MACAddr target_mac, IPv4Addr target_ip) {
