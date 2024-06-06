@@ -22,4 +22,10 @@ TEST(MACTest, BasicAssertions) {
     ASSERT_EQ((string)b, "AA:BB:CC:DD:EE:FF");
   else
     ASSERT_EQ((string)b, "FF:EE:DD:CC:BB:AA");
+  a += 10;
+  ASSERT_EQ((string)a, "AA:BB:CC:DD:EF:09");
+  a++;
+  ASSERT_EQ((string)a, "AA:BB:CC:DD:EF:0A");
+  ASSERT_EQ((string)++a, "AA:BB:CC:DD:EF:0B");
+
 }

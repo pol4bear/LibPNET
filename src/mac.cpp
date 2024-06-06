@@ -58,7 +58,26 @@ MACAddr::operator uint64_t() const {
   return result;
 }
 
- uint8_t MACAddr::operator[](int index) const {
+MACAddr MACAddr::operator+=(int n) {
+  uint64_t mac = *this;
+  mac += n;
+  *this = MACAddr(mac);
+  return *this;
+}
+
+MACAddr &MACAddr::operator++() {
+  *this += 1;
+  return *this;
+}
+
+MACAddr MACAddr::operator++(int) {
+  MACAddr tmp = *this;
+  ++*this;
+  return tmp;
+}
+
+uint8_t MACAddr::operator[](int index) const
+{
   if (index < 0 || index > 5)
     return 0;
   uint64_t *addr = (uint64_t*)data;

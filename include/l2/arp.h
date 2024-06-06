@@ -1,8 +1,9 @@
 #pragma once
 
+#include "ether.h"
 #include "mac.h"
-#include "l3/ipv4.h"
-#include "netinfo.h"
+#include "../l3/ipv4.h"
+#include "../netinfo.h"
 
 namespace pol4b {
 

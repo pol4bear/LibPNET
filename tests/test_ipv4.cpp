@@ -20,4 +20,9 @@ TEST(IPv4Test, BasicAssertions) {
     ASSERT_EQ((string)b, "192.168.0.1");
   else
     ASSERT_EQ((string)b, "1.0.168.192");
+  a += 10;
+  ASSERT_EQ((string)a, "192.168.0.11");
+  a++;
+  ASSERT_EQ((string)a, "192.168.0.12");
+  ASSERT_EQ((string)++a, "192.168.0.13");
 }

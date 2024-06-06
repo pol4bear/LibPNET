@@ -56,6 +56,22 @@ IPv4Addr::operator uint32_t() const {
   return data;
 }
 
+IPv4Addr IPv4Addr::operator+=(int n) {
+  this->data += n;
+  return *this;
+}
+
+IPv4Addr &IPv4Addr::operator++() {
+  *this += 1;
+  return *this;
+}
+
+IPv4Addr IPv4Addr::operator++(int) {
+  IPv4Addr tmp = *this;
+  ++*this;
+  return tmp;
+}
+
 uint8_t IPv4Addr::operator[](int index) const {
   if (index < 0 || index > 3)
     return 0;

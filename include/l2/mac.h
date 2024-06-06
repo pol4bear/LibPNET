@@ -14,6 +14,9 @@ class MACAddr {
     MACAddr(const char *addr);
     operator std::string() const;
     operator uint64_t() const;
+    MACAddr operator+=(int n);
+    MACAddr &operator++();
+    MACAddr operator++(int);
     uint8_t operator[](int index) const;
     void copy(uint8_t *dest, bool network=false) const;
     void to_host_byte_order();
