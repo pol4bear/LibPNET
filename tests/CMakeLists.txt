@@ -1,11 +1,17 @@
-IF((DEFINED CXX) OR (DEFINED CMAKE_TOOLCHAIN_FILE))
-  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/../include)
-  LINK_DIRECTORIES(${CMAKE_SOURCE_DIR}/../lib)
-ENDIF()
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  GIT_REPOSITORY https://github.com/google/googletest.git
+  GIT_TAG v1.14.0
+)
+FetchContent_MakeAvailable(googletest)
 
-ADD_EXECUTABLE(test_mac test_mac.cpp ../src/mac.cpp)
-TARGET_LINK_LIBRARIES(test_mac gtest gtest_main)
-ADD_EXECUTABLE(test_ipv4 test_ipv4.cpp ../src/ipv4.cpp)
-TARGET_LINK_LIBRARIES(test_ipv4 gtest gtest_main)
-ADD_EXECUTABLE(test_cidr test_cidr.cpp ../src/subnetmask.cpp ../src/ipv4.cpp)
-TARGET_LINK_LIBRARIES(test_cidr gtest gtest_main)
+add_executable(test_all
+  test_mac.cpp
+  test_ipv4.cpp
+  test_cidr.cpp
+  ../src/mac.cpp
+  ../src/ipv4.cpp
+  ../src/subnetmask.cpp
+)
+TARGET_LINK_LIBRARIES(test_all gtest gtest_main)
