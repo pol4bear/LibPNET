@@ -241,7 +241,7 @@ RouteInfoWithName NetInfoManager::get_best_routeinfo(IPv4Addr destination) {
       if ((destination & route.mask) == route.destination) {
         int prefix_len = SubnetMask(route.mask).to_cidr();
         if (prefix_len > longest_prefix || (prefix_len == longest_prefix &&
-          route.metric < best_route->metric)) {
+          (route.metric < best_route->metric || best_route->gateway == 0))) {
           longest_prefix = prefix_len;
           ifname = ifroute.first;
           best_route = &route;

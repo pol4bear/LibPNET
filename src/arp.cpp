@@ -9,6 +9,7 @@
 #include <net/if.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <errno.h>
 #include <linux/if_ether.h>
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
@@ -24,7 +25,7 @@ ARP::ARP() = default;
 MACAddr ARP::get_mac_addr(IPv4Addr ip_addr, int timeout) {
     MACAddr mac_addr;
     auto route_info = NetInfoManager::instance().get_best_routeinfo(ip_addr);
-    if (route_info.second == nullptr)
+    if (route_info.first.empty())
         throw invalid_argument("Failed to get route to IP address.");
     auto if_info = NetInfoManager::instance().get_netinfo(route_info.first);
     if (if_info == nullptr)
@@ -37,6 +38,7 @@ MACAddr ARP::get_mac_addr(IPv4Addr ip_addr, int timeout) {
     int if_index = NetInfoManager::instance().get_interface_index(route_info.first);
     if (if_index == -1)
         throw runtime_error("Failed to get interface index.");
+    const IPv4Addr &my_ip = (uint32_t)route_info.second->prefsrc == 0 ?  if_info->ip : route_info.second->prefsrc;
 
     int sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
     if (sock < 0)
@@ -61,7 +63,7 @@ MACAddr ARP::get_mac_addr(IPv4Addr ip_addr, int timeout) {
             throw runtime_error("Failed to bind socket.");
 
         ARP request = ARP::make_packet(if_info->mac, 0xFFFFFFFFFFFF,
-                                       ARPHeader::Operation::Request, if_info->mac, route_info.second->prefsrc,
+                                       ARPHeader::Operation::Request, if_info->mac, my_ip,
                                        (uint64_t)0, ip_addr);
 
         auto send_arp_request = [&mac_addr, &sock, &request, &sa, &timeout, &stop_thread]() {
@@ -89,7 +91,7 @@ MACAddr ARP::get_mac_addr(IPv4Addr ip_addr, int timeout) {
             if (retval == -1) {
                 stop_thread = true;
                 send_thread.join();
-                throw runtime_error("select() failed.");
+                throw runtime_error("select(): " + string(strerror(errno)));
             } else if (retval == 0) {
                 break;
             }
@@ -100,7 +102,7 @@ MACAddr ARP::get_mac_addr(IPv4Addr ip_addr, int timeout) {
                     continue;
                 stop_thread = true;
                 send_thread.join();
-                throw runtime_error("recvfrom() failed.");
+                throw runtime_error("recvfrom(): " + string(strerror(errno)));
             }
 
             if (reply.eth_hdr.ether_type == htons((uint16_t)EthernetHeader::Ethertype::ARP) &&
