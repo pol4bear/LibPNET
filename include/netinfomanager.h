@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <unordered_map>
+#include <mutex>
 #include <linux/rtnetlink.h>
 
 namespace pol4b {
@@ -22,7 +23,9 @@ private:
   std::map<int, std::string> interface_name;
   std::unordered_map<std::string, int> interface_index;
   NetInfoMap interfaces;
+  std::mutex interfaces_mutex;
   RouteInfoMap routes;
+  std::mutex routes_mutex;;
   int send_netlink_request(int sock, int type, uint8_t table=RT_TABLE_MAIN, int flags=0);
 
 

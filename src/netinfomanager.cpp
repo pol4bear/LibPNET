@@ -42,6 +42,7 @@ NetInfoManager &NetInfoManager::instance() {
 }
 
 void NetInfoManager::load_netinfo() {
+  lock_guard<mutex> guard(this->interfaces_mutex);
   int sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
   if (sock < 0)
     throw runtime_error("Failed to create netlink socket.");
@@ -102,6 +103,7 @@ void NetInfoManager::load_netinfo() {
 }
 
 void NetInfoManager::load_routeinfo() {
+  lock_guard<mutex> guard(this->routes_mutex);
   if (interface_name.size() < 1)
     load_netinfo();
 
@@ -162,12 +164,14 @@ void NetInfoManager::load_routeinfo() {
 const NetInfoMap &NetInfoManager::get_all_netinfo(bool reload) {
   if (reload || interfaces.size() < 1)
     load_netinfo();
+  lock_guard<mutex> guard(this->interfaces_mutex);
   return interfaces;
 }
 
 const RouteInfoMap &NetInfoManager::get_all_routeinfo(bool reload) {
   if (reload || routes.size() < 1)
     load_routeinfo();
+  lock_guard<mutex> guard(this->routes_mutex);
   return routes;
 }
 
@@ -176,6 +180,7 @@ const NetInfo *NetInfoManager::get_netinfo(string name) {
     return nullptr;
   else if (interfaces.size() < 1)
     load_netinfo();
+  lock_guard<mutex> guard(this->interfaces_mutex);
   auto netinfo = interfaces.find(name);
   if (netinfo == interfaces.end())
     return nullptr;
@@ -188,6 +193,7 @@ const IPv4Addr *NetInfoManager::get_gateway_ip(string name) {
     return gateway_ip;
   else if (routes.size() < 1)
     load_routeinfo();
+  lock_guard<mutex> guard(this->routes_mutex);
   for (auto &route : routes[name]) {
     if (route.gateway != 0) {
       gateway_ip = &route.gateway;
@@ -216,6 +222,7 @@ pair<IPv4Addr, IPv4Addr> NetInfoManager::get_ip_range(std::string name) {
     throw invalid_argument("Empty interface name.");
   else if (interfaces.size() < 1)
     load_routeinfo();
+  lock_guard<mutex> guard(this->routes_mutex);
   auto interface = interfaces.find(name);
   if (interface == interfaces.end())
     throw invalid_argument("Invalid interface name.");
@@ -228,6 +235,7 @@ RouteInfoWithName NetInfoManager::get_best_routeinfo(IPv4Addr destination) {
   int longest_prefix = -1;
   if (routes.size() < 1)
     load_routeinfo();
+  lock_guard<mutex> guard(this->routes_mutex);
   for (auto &ifroute : routes) {
     for (auto &route : ifroute.second) {
       if ((destination & route.mask) == route.destination) {
@@ -249,6 +257,7 @@ RouteInfoWithName NetInfoManager::get_default_routeinfo() {
   const RouteInfo *default_route = nullptr;
   if (routes.size() < 1)
     load_routeinfo();
+  lock_guard<mutex> guard(this->routes_mutex);
   for (auto &ifroute : routes) {
     for (auto &route : ifroute.second) {
       if ((uint32_t)route.destination == 0 && (uint32_t)route.mask == 0) {
@@ -263,6 +272,7 @@ RouteInfoWithName NetInfoManager::get_default_routeinfo() {
 string NetInfoManager::get_interface_name(int index) {
   if (interface_name.size() < 1)
     load_netinfo();
+  lock_guard<mutex> guard(this->interfaces_mutex);
   auto name = interface_name.find(index);
   if (name == interface_name.end())
     return "";
@@ -272,6 +282,7 @@ string NetInfoManager::get_interface_name(int index) {
 int NetInfoManager::get_interface_index(std::string name) {
   if (interface_index.size() < 1)
     load_netinfo();
+  lock_guard<mutex> guard(this->interfaces_mutex);
   auto index = interface_index.find(name);
   if (index == interface_index.end())
     return -1;
