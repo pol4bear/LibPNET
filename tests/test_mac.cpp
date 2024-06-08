@@ -27,5 +27,4 @@ TEST(MACTest, BasicAssertions) {
   a++;
   ASSERT_EQ((string)a, "AA:BB:CC:DD:EF:0A");
   ASSERT_EQ((string)++a, "AA:BB:CC:DD:EF:0B");
-
 }

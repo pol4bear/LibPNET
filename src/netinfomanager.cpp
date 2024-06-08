@@ -140,16 +140,18 @@ void NetInfoManager::load_routeinfo() {
             break;
           case RTA_PREFSRC:
             memcpy(&tmp, RTA_DATA(attr), sizeof(tmp));
-            route_info.mask = SubnetMask(ntohl(tmp));
+            route_info.gateway = IPv4Addr(ntohl(tmp));
             break;
           case RTA_PRIORITY:
-            memcpy(&route_info.metric, RTA_DATA(attr), sizeof(route_info.metric));
+            memcpy(&tmp, RTA_DATA(attr), sizeof(tmp));
+            route_info.metric = ntohl(tmp);
             break;
           case RTA_OIF:
             memcpy(&tmp, RTA_DATA(attr), sizeof(tmp));
             ifname = interface_name[tmp];
             break;
           }
+          route_info.mask = SubnetMask(rtm->rtm_dst_len);
         }
         routes[ifname].push_back(route_info);
       }

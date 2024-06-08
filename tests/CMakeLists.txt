@@ -15,3 +15,6 @@ add_executable(test_all
   ../src/subnetmask.cpp
 )
 TARGET_LINK_LIBRARIES(test_all gtest gtest_main)
+
+file(GLOB SOURCES "../src/*.cpp")
+add_executable(test_arp test_arp.cpp ${SOURCES})

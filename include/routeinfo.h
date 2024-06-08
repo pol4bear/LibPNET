@@ -9,6 +9,7 @@ namespace pol4b {
     RouteInfo() = default;
     IPv4Addr gateway;
     IPv4Addr destination;
+    IPv4Addr prefsrc;
     SubnetMask mask;
     uint32_t metric = 0;
   };

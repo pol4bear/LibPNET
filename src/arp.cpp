@@ -61,14 +61,14 @@ MACAddr ARP::get_mac_addr(IPv4Addr ip_addr, int timeout) {
             throw runtime_error("Failed to bind socket.");
 
         ARP request = ARP::make_packet(if_info->mac, 0xFFFFFFFFFFFF,
-                                       ARPHeader::Operation::Request, if_info->mac, if_info->ip,
+                                       ARPHeader::Operation::Request, if_info->mac, route_info.second->prefsrc,
                                        (uint64_t)0, ip_addr);
 
         auto send_arp_request = [&mac_addr, &sock, &request, &sa, &timeout, &stop_thread]() {
-            for (int sent = 0; !stop_thread && sent < timeout; sent++) {
+            while (!stop_thread) {
                 if (sendto(sock, &request, sizeof(request), 0, (sockaddr*)&sa, sizeof(sa)) < 0)
                     break;
-                this_thread::sleep_for(chrono::seconds(1));
+                this_thread::sleep_for(chrono::milliseconds(500));
             }
         };
 

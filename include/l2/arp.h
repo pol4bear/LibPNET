@@ -42,7 +42,7 @@ public:
   ARP();
   EthernetHeader eth_hdr;
   ARPHeader arp_hdr;
-  static MACAddr get_mac_addr(IPv4Addr ip_addr, int timeout=3);
+  static MACAddr get_mac_addr(IPv4Addr ip_addr, int timeout=2);
   static ARP make_packet(MACAddr source_mac, MACAddr dest_mac,
     ARPHeader::Operation operation, MACAddr sender_mac, IPv4Addr sender_ip,
     MACAddr target_mac, IPv4Addr target_ip);
