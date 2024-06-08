@@ -68,7 +68,7 @@ MACAddr ARP::get_mac_addr(IPv4Addr ip_addr, int timeout) {
             while (!stop_thread) {
                 if (sendto(sock, &request, sizeof(request), 0, (sockaddr*)&sa, sizeof(sa)) < 0)
                     break;
-                this_thread::sleep_for(chrono::milliseconds(500));
+                this_thread::sleep_for(chrono::milliseconds(100));
             }
         };
 
