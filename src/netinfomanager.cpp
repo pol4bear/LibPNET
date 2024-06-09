@@ -142,7 +142,7 @@ void NetInfoManager::load_routeinfo() {
             break;
           case RTA_PREFSRC:
             memcpy(&tmp, RTA_DATA(attr), sizeof(tmp));
-            route_info.gateway = IPv4Addr(ntohl(tmp));
+            route_info.prefsrc = IPv4Addr(ntohl(tmp));
             break;
           case RTA_PRIORITY:
             memcpy(&tmp, RTA_DATA(attr), sizeof(tmp));
@@ -155,7 +155,8 @@ void NetInfoManager::load_routeinfo() {
           }
           route_info.mask = SubnetMask(rtm->rtm_dst_len);
         }
-        routes[ifname].push_back(route_info);
+        if (route_info.prefsrc != 0 || route_info.gateway != 0)
+          routes[ifname].push_back(route_info);
       }
     }
   }
@@ -241,7 +242,7 @@ RouteInfoWithName NetInfoManager::get_best_routeinfo(IPv4Addr destination) {
       if ((destination & route.mask) == route.destination) {
         int prefix_len = SubnetMask(route.mask).to_cidr();
         if (prefix_len > longest_prefix || (prefix_len == longest_prefix &&
-          (route.metric < best_route->metric || best_route->gateway == 0))) {
+          route.metric < best_route->metric)) {
           longest_prefix = prefix_len;
           ifname = ifroute.first;
           best_route = &route;
