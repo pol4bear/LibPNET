@@ -39,7 +39,7 @@ public:
   const IPv4Addr *get_gateway_ip(std::string name);
   NetInfo get_gateway_info(std::string name);
   std::pair<IPv4Addr, IPv4Addr> get_ip_range(IPv4Addr ip, SubnetMask mask);
-  std::pair<IPv4Addr, IPv4Addr> get_ip_range(std::string name);
+  std::pair<IPv4Addr, IPv4Addr> get_ip_range(std::string name, SubnetMask maximum_mask=SubnetMask());
   RouteInfoWithName get_best_routeinfo(IPv4Addr destination=std::string("8.8.8.8"));
   RouteInfoWithName get_default_routeinfo();
   std::string get_interface_name(int index);
