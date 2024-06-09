@@ -11,7 +11,7 @@ int main() {
     throw runtime_error("You are not connected to the internet.");
   auto ip_range = NetInfoManager::instance().get_ip_range(route_info.first);
   if (ip_range.first == 0)
-    throw runtime_error("Faile to get IP range of the interface.");
+    throw runtime_error("Failed to get IP range of the interface.");
   IPv4Addr start = ip_range.first;
   IPv4Addr end = start + 10;
   if (end > ip_range.second)

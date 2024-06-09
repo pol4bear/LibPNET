@@ -55,7 +55,11 @@ void NetInfoManager::load_netinfo() {
   char buffer[8192];
   int len = 0;
   map<int, NetInfo> interface_map;
+
+  // Send request to get link information
   send_netlink_request(sock, RTM_GETLINK);
+
+  // Receive response and process it
   while ((len = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
     for (nlmsghdr *nh = (nlmsghdr*)buffer; NLMSG_OK(nh, len); nh = NLMSG_NEXT(nh, len)) {
       if (nh->nlmsg_type == NLMSG_DONE)
@@ -66,18 +70,24 @@ void NetInfoManager::load_netinfo() {
         int length = nh->nlmsg_len - NLMSG_LENGTH(sizeof(*iface));
         for (; RTA_OK(attr, length); attr = RTA_NEXT(attr, length)) {
             if (attr->rta_type == IFLA_IFNAME) {
+              // Store interface name
               auto if_name = (char*)RTA_DATA(attr);
               interface_name[iface->ifi_index] = if_name;
               interface_index[if_name] = iface->ifi_index;
             }
             else if (attr->rta_type == IFLA_ADDRESS) {
+              // Store MAC address
               interface_map[iface->ifi_index].mac = MACAddr((uint8_t*)RTA_DATA(attr), 6, true);
             }
         }
       }
     }
   }
+
+  // Send request to get address information
   send_netlink_request(sock, RTM_GETADDR);
+
+  // Receive response and process it
   while ((len = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
     for (nlmsghdr *nh = (nlmsghdr*)buffer; NLMSG_OK(nh, len); nh = NLMSG_NEXT(nh, len)) {
       if (nh->nlmsg_type == NLMSG_DONE)
@@ -88,15 +98,18 @@ void NetInfoManager::load_netinfo() {
         int ifa_len = IFA_PAYLOAD(nh);
         for (; RTA_OK(attr, ifa_len); attr = RTA_NEXT(attr, ifa_len)) {
           if (attr->rta_type == IFA_LOCAL) {
+            // Store IP address
             interface_map[ifa->ifa_index].ip = IPv4Addr(ntohl(*(uint32_t*)RTA_DATA(attr)));
             break;
           }
         }
+        // Store subnet mask
         interface_map[ifa->ifa_index].mask = SubnetMask::from_cidr((int)ifa->ifa_prefixlen);
       }
     }
   }
 
+  // Update interfaces map
   interfaces.clear();
   for (const auto &interface : interface_map)
     interfaces[interface_name[interface.first]] = interface.second;
@@ -118,7 +131,11 @@ void NetInfoManager::load_routeinfo() {
 
   char buffer[8192];
   int len = 0;
+
+  // Send request to get route information
   send_netlink_request(sock, RTM_GETROUTE);
+
+  // Receive response and process it
   while ((len = recv(sock, buffer, sizeof(buffer), 0)) > 0) {
     for (nlmsghdr *nh = (nlmsghdr*)buffer; NLMSG_OK(nh, len); nh = NLMSG_NEXT(nh, len)) {
       if (nh->nlmsg_type == NLMSG_DONE)
@@ -133,26 +150,32 @@ void NetInfoManager::load_routeinfo() {
         for (; RTA_OK(attr, length); attr = RTA_NEXT(attr, length)) {
           switch(attr->rta_type) {
           case RTA_GATEWAY:
+            // Store gateway IP address
             memcpy(&tmp, RTA_DATA(attr), sizeof(tmp));
             route_info.gateway = IPv4Addr(ntohl(tmp));
             break;
           case RTA_DST:
+            // Store destination IP address
             memcpy(&tmp, RTA_DATA(attr), sizeof(tmp));
             route_info.destination = IPv4Addr(ntohl(tmp));
             break;
           case RTA_PREFSRC:
+            // Store preferred source IP address
             memcpy(&tmp, RTA_DATA(attr), sizeof(tmp));
             route_info.prefsrc = IPv4Addr(ntohl(tmp));
             break;
           case RTA_PRIORITY:
+            // Store route metric
             memcpy(&tmp, RTA_DATA(attr), sizeof(tmp));
             route_info.metric = ntohl(tmp);
             break;
           case RTA_OIF:
+            // Get interface name by index
             memcpy(&tmp, RTA_DATA(attr), sizeof(tmp));
             ifname = interface_name[tmp];
             break;
           }
+          // Store subnet mask
           route_info.mask = SubnetMask(rtm->rtm_dst_len);
         }
         if (route_info.prefsrc != 0 || route_info.gateway != 0)
@@ -204,17 +227,8 @@ const IPv4Addr *NetInfoManager::get_gateway_ip(string name) {
   return gateway_ip;
 }
 
-NetInfo NetInfoManager::get_gateway_info(std::string name) {
-  NetInfo gateway_info;
-  auto gateway_ip = NetInfoManager::instance().get_gateway_ip(name);
-  if (gateway_ip == nullptr)
-    throw invalid_argument("Failed to get gateway IP address.");
-  gateway_info.ip = *gateway_ip;
-  gateway_info.mac = ARP::get_mac_addr(*gateway_ip);
-  return gateway_info;
-}
-
 pair<IPv4Addr, IPv4Addr> NetInfoManager::get_ip_range(IPv4Addr ip, SubnetMask mask) {
+  // Calculate the IP range based on the given IP and subnet mask
   return make_pair((ip & mask) + 1, (ip | ~mask) - 1);
 }
 

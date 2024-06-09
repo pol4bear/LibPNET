@@ -194,13 +194,17 @@ int arpblock(string ip) {
 
   // Setup target and gateway information.
   MACAddr target_mac = ARP::get_mac_addr(target_ip);
-  NetInfo gateway_info = NetInfoManager::instance().get_gateway_info(route_info.first);
-  IPv4Addr fake_ip = gateway_info.ip;
+  const IPv4Addr *gateway_ip = NetInfoManager::instance().get_gateway_ip(route_info.first);
+  if (gateway_ip == nullptr) {
+    cerr << "Failed to get IP address of the gateway." << endl;
+    return 1;
+  }
+  IPv4Addr fake_ip = *gateway_ip;
 
   // Generate and bind raw socket.
   sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
   if (sock < 0) {
-    cout << "Failed to create socket." << endl;
+    cerr << "Failed to create socket." << endl;
     return 1;
   }
   sockaddr_ll sa;
@@ -210,7 +214,7 @@ int arpblock(string ip) {
   sa.sll_ifindex = if_index;
   if (::bind(sock, (sockaddr*)&sa, sizeof(sa)) < 0) {
     close(sock);
-    cout << "Failed to bind socket." << endl;
+    cerr << "Failed to bind socket." << endl;
     return 1;
   }
 
@@ -218,9 +222,15 @@ int arpblock(string ip) {
   // Info : if the recovery packet is the original reply packet to the target, Android devices won't recover.
   ARP fake_reply = ARP::make_packet(netinfo->mac, target_mac, ARPHeader::Operation::Reply,
     netinfo->mac, fake_ip, target_mac, target_ip);
+
+  MACAddr gateway_mac = ARP::get_mac_addr(*gateway_ip);
+  if (gateway_mac == 0) {
+    cerr << "Failed to get MAC address of the gateway." << endl;
+    return 1;
+  }
   recover = new ARP();
-  *recover = ARP::make_packet(netinfo->mac, gateway_info.mac, ARPHeader::Operation::Request,
-    target_mac, target_ip, MACAddr(), gateway_info.ip);
+  *recover = ARP::make_packet(netinfo->mac, gateway_mac, ARPHeader::Operation::Request,
+    target_mac, target_ip, MACAddr(), *gateway_ip);
 
   // Send ARP fake reply packet.
   while(!stop) {
