@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <thread>
 #include <chrono>
+#include <condition_variable>
 #include <unordered_set>
 #include <sys/socket.h>
 #include <sys/select.h>
@@ -76,7 +77,7 @@ MACAddr ARP::get_mac_addr(IPv4Addr ip_addr, int timeout) {
                      (uint64_t)0, ip_addr);
 
     // Send the ARP requests every 0.1 seconds.
-    auto send_arp_request = [&mac_addr, &sock, &request, &sa, &timeout, &stop_thread]() {
+    auto send_arp_request = [&]() {
       while (!stop_thread) {
         if (sendto(sock, &request, sizeof(request), 0, (sockaddr*)&sa, sizeof(sa)) < 0)
           break;
@@ -102,8 +103,9 @@ MACAddr ARP::get_mac_addr(IPv4Addr ip_addr, int timeout) {
         stop_thread = true;
         send_thread.join();
         throw runtime_error("select(): " + string(strerror(errno)));
-      } else if (retval == 0) {
-        break;
+      }
+      else if (retval == 0) {
+        throw runtime_error("select(): " + string(strerror(errno)));
       }
 
       auto n = recvfrom(sock, &reply, sizeof(reply), 0, NULL, NULL);
@@ -176,6 +178,13 @@ void ARP::get_mac_addr(std::list<IPv4Addr> ip_addrs, std::function<void(IPv4Addr
     if (sock < 0)
         throw std::runtime_error("Failed to create socket.");
 
+    // Set the socket to non-blocking mode
+    int flags = fcntl(sock, F_GETFL, 0);
+    if (flags < 0)
+        throw std::runtime_error("Failed to get socket flags.");
+    if (fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0)
+        throw std::runtime_error("Failed to set socket to non-blocking mode.");
+
     // Bind the raw socket
     sockaddr_ll sa;
     memset(&sa, 0, sizeof(sa));
@@ -189,36 +198,47 @@ void ARP::get_mac_addr(std::list<IPv4Addr> ip_addrs, std::function<void(IPv4Addr
 
     // Data structure to store IP addresses to be processed
     std::unordered_set<uint32_t> tmp_ip_addrs;
-    std::mutex ip_set_mutex; // Mutex to protect access to tmp_ip_addrs
+    std::unordered_set<uint32_t> all_ip_addrs;
+    std::mutex ip_set_mutex; // Mutex to protect access to tmp_ip_addrs and all_ip_addrs
+    std::condition_variable cv;
     std::atomic<bool> stop_thread(false);
     std::thread receive_thread;
 
     // Lambda function to receive ARP responses
     auto receive_arp_response = [&]() {
-        while (!stop_thread) {
-            ARP reply;
-            auto n = recvfrom(sock, &reply, sizeof(reply), 0, NULL, NULL);
-            if (n < 0) {
-                if (errno == EWOULDBLOCK || errno == EAGAIN)
-                    continue;
-                throw std::runtime_error("recvfrom(): " + std::string(strerror(errno)));
-            }
-            if (reply.eth_hdr.ether_type == htons((uint16_t)EthernetHeader::Ethertype::ARP) &&
-                reply.arp_hdr.operation == htons((uint16_t)ARPHeader::Operation::Reply) &&
-                ntohl(reply.arp_hdr.target_protocol_address) == my_ip) {
-                IPv4Addr ip = ntohl(reply.arp_hdr.sender_protocol_address);
-                if (tmp_ip_addrs.find(ip) != tmp_ip_addrs.end()) {
-                  MACAddr mac;
-                  reply.arp_hdr.sender_hardware_address.copy((uint8_t*)&mac);
-                  mac.to_host_byte_order();
-                  {
-                      std::lock_guard<std::mutex> lock(ip_set_mutex);
-                      tmp_ip_addrs.erase(ip);
-                  }
-                  callback(ip, mac);
-                }
-            }
+      fd_set read_fds;
+      FD_ZERO(&read_fds);
+      FD_SET(sock, &read_fds);
+      while (!stop_thread) {
+        ARP reply;
+        int retval = select(sock + 1, &read_fds, NULL, NULL, NULL);
+        if (retval == -1) {
+          stop_thread = true;
+          throw runtime_error("select(): " + string(strerror(errno)));
         }
+        else if (retval == 0) {
+          break;
+        }
+        auto n = recvfrom(sock, &reply, sizeof(reply), 0, NULL, NULL);
+        if (n < 0) {
+          if (errno == EWOULDBLOCK || errno == EAGAIN)
+            continue;
+          throw std::runtime_error("recvfrom(): " + std::string(strerror(errno)));
+        }
+        if (reply.eth_hdr.ether_type == htons((uint16_t)EthernetHeader::Ethertype::ARP)) {
+          IPv4Addr ip = ntohl(reply.arp_hdr.sender_protocol_address);
+          std::lock_guard<std::mutex> lock(ip_set_mutex);
+          if (all_ip_addrs.find(ip) != all_ip_addrs.end()) {
+            MACAddr mac;
+            reply.arp_hdr.sender_hardware_address.copy((uint8_t*)&mac);
+            mac.to_host_byte_order();
+            tmp_ip_addrs.erase(ip);
+            all_ip_addrs.erase(ip);
+            callback(ip, mac);
+            cv.notify_all();
+          }
+        }
+      }
     };
 
     // Start the thread to receive ARP responses
@@ -228,25 +248,29 @@ void ARP::get_mac_addr(std::list<IPv4Addr> ip_addrs, std::function<void(IPv4Addr
         while (!ip_addrs.empty()) {
             auto it = ip_addrs.begin();
             // Process IP addresses in batches
-            for (int i = 0; i < batch && it != ip_addrs.end(); i++) {
-                {
-                    std::lock_guard<std::mutex> lock(ip_set_mutex);
+            {
+                std::lock_guard<std::mutex> lock(ip_set_mutex);
+                for (int i = 0; i < batch && it != ip_addrs.end(); i++) {
                     tmp_ip_addrs.insert(*it);
+                    all_ip_addrs.insert(*it);
+                    it = ip_addrs.erase(it);
                 }
-                it = ip_addrs.erase(it);
             }
 
             // Send ARP requests
             for (int i = 0; i < retries; i++) {
-                std::lock_guard<std::mutex> lock(ip_set_mutex);
-                for (auto ip_addr : tmp_ip_addrs) {
+                std::unordered_set<uint32_t> tmp_ip_addrs_copy;
+                {
+                    std::lock_guard<std::mutex> lock(ip_set_mutex);
+                    tmp_ip_addrs_copy = tmp_ip_addrs;
+                }
+                for (auto ip_addr : tmp_ip_addrs_copy) {
                     ARP request = ARP::make_packet(if_info->mac, 0xFFFFFFFFFFFF,
                         ARPHeader::Operation::Request, if_info->mac, my_ip,
                         (uint64_t)0, ip_addr);
                     if (sendto(sock, &request, sizeof(request), 0, (sockaddr*)&sa, sizeof(sa)) < 0)
                         throw std::runtime_error("Failed to send ARP request: " + std::string(strerror(errno)));
                 }
-
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
 
@@ -255,17 +279,11 @@ void ARP::get_mac_addr(std::list<IPv4Addr> ip_addrs, std::function<void(IPv4Addr
             auto timeout = 500 - 100 * retries;
             auto timeout_duration = std::chrono::milliseconds(timeout > 0 ? timeout : 0);
             while (true) {
-                {
-                    std::lock_guard<std::mutex> lock(ip_set_mutex);
-                    if (tmp_ip_addrs.empty()) {
-                        break;
-                    }
-                }
-                auto elapsed_time = std::chrono::steady_clock::now() - start_time;
-                if (elapsed_time >= timeout_duration) {
+                std::unique_lock<std::mutex> lock(ip_set_mutex);
+                if (tmp_ip_addrs.empty() || (std::chrono::steady_clock::now() - start_time) >= timeout_duration) {
                     break;
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                cv.wait_for(lock, std::chrono::milliseconds(50));
             }
 
             {
@@ -291,8 +309,7 @@ void ARP::get_mac_addr(std::list<IPv4Addr> ip_addrs, std::function<void(IPv4Addr
 
 ARP ARP::make_packet(MACAddr source_mac, MACAddr dest_mac,
                      ARPHeader::Operation operation, MACAddr sender_mac, IPv4Addr sender_ip,
-                     MACAddr target_mac, IPv4Addr target_ip)
-{
+                     MACAddr target_mac, IPv4Addr target_ip) {
   ARP arp_packet;
   dest_mac.copy((uint8_t*)&arp_packet.eth_hdr.destination_mac, true);
   source_mac.copy((uint8_t*)&arp_packet.eth_hdr.source_mac, true);

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <chrono>
+#include <thread>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <net/if.h>
@@ -12,7 +13,6 @@
 #include <memory.h>
 #include <signal.h>
 
-#include "threadpool.hpp"
 #include "netinfomanager.h"
 #include "l2/arp.h"
 
@@ -113,28 +113,31 @@ int show_routes() {
 }
 
 int arpscan(string interface) {
-  pair<IPv4Addr, IPv4Addr> ip_range;
-  try {
-    ip_range = NetInfoManager::instance().get_ip_range(interface);
-  }
-  catch (const exception &e) {
-    cerr << e.what() << endl;
-    return 1;
-  }
-  list<IPv4Addr> ip_list;
-  for (auto ip = ip_range.first; ip <= ip_range.second; ip++)
-    ip_list.push_back(ip);
-  bool scan_finished = false;
-  auto callback = [&](IPv4Addr ip, MACAddr mac) {
-    if (ip == 0) {
-      scan_finished = true;
-      return;
+    pair<IPv4Addr, IPv4Addr> ip_range;
+    try {
+        ip_range = NetInfoManager::instance().get_ip_range(interface);
     }
-    cout << (string)ip << " " << (string)mac << endl;
-  };
-  ARP::get_mac_addr(ip_list, callback);
-  while (!scan_finished);
-  return 0;
+    catch (const exception &e) {
+        cerr << e.what() << endl;
+        return 1;
+    }
+    list<IPv4Addr> ip_list;
+    for (auto ip = ip_range.first; ip <= ip_range.second; ip++)
+        ip_list.push_back(ip);
+    bool scan_finished = false;
+    auto callback = [&](IPv4Addr ip, MACAddr mac) {
+        if (ip == 0) {
+            scan_finished = true;
+            return;
+        }
+        cout << (string)ip << " " << (string)mac << endl;
+    };
+    ARP::get_mac_addr(ip_list, callback);
+    while (!scan_finished) {
+        cout << "Waiting" << endl;
+        this_thread::sleep_for(chrono::milliseconds(50)); // Avoid busy-wait
+    }
+    return 0;
 }
 
 int sock = 0;
