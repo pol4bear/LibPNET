@@ -113,7 +113,6 @@ int show_routes() {
 }
 
 int arpscan(string interface) {
-
   pair<IPv4Addr, IPv4Addr> ip_range;
   try {
     ip_range = NetInfoManager::instance().get_ip_range(interface);
@@ -122,26 +121,19 @@ int arpscan(string interface) {
     cerr << e.what() << endl;
     return 1;
   }
-
-  ThreadPool pool;
-  vector <future<void>> results;
-
-  for (IPv4Addr ip = ip_range.first; ip <= ip_range.second; ip++) {
-    {
-      results.emplace_back(pool.enqueue([ip]() {
-        MACAddr mac;
-        try {
-          mac = ARP::get_mac_addr(ip);
-          cout << (string)ip << " " << (string)mac << endl;
-        }
-        catch (...) {}
-      }));
+  list<IPv4Addr> ip_list;
+  for (auto ip = ip_range.first; ip <= ip_range.second; ip++)
+    ip_list.push_back(ip);
+  bool scan_finished = false;
+  auto callback = [&](IPv4Addr ip, MACAddr mac) {
+    if (ip == 0) {
+      scan_finished = true;
+      return;
     }
-  }
-
-  for (auto &&result : results)
-    result.get();
-
+    cout << (string)ip << " " << (string)mac << endl;
+  };
+  ARP::get_mac_addr(ip_list, callback);
+  while (!scan_finished);
   return 0;
 }
 
@@ -218,8 +210,6 @@ int arpblock(string ip) {
     return 1;
   }
 
-  // Generate ARP fake reply and recover packet.
-  // Info : if the recovery packet is the original reply packet to the target, Android devices won't recover.
   ARP fake_reply = ARP::make_packet(netinfo->mac, target_mac, ARPHeader::Operation::Reply,
     netinfo->mac, fake_ip, target_mac, target_ip);
 
@@ -228,9 +218,13 @@ int arpblock(string ip) {
     cerr << "Failed to get MAC address of the gateway." << endl;
     return 1;
   }
+
+
+  // Generate ARP fake reply and recover packet.
+  // Info : if the recovery packet is the original reply packet to the target, Android devices won't recover.
   recover = new ARP();
-  *recover = ARP::make_packet(netinfo->mac, gateway_mac, ARPHeader::Operation::Request,
-    target_mac, target_ip, MACAddr(), *gateway_ip);
+  *recover = ARP::make_packet(netinfo->mac, target_mac, ARPHeader::Operation::Request,
+    gateway_mac, *gateway_ip, 0xFFFFFFFFFFFF, target_ip);
 
   // Send ARP fake reply packet.
   while(!stop) {

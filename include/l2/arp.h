@@ -4,6 +4,8 @@
 #include "mac.h"
 #include "../l3/ipv4.h"
 #include "../netinfo.h"
+#include <list>
+#include <functional>
 
 namespace pol4b {
 
@@ -102,13 +104,35 @@ public:
   ARPHeader arp_hdr;
 
   /**
-   * @brief Get the MAC address of the target device.
+   * @brief Retrieves the MAC address for a given IPv4 address using ARP.
    *
-   * @param ip_addr The IP address of the target device.
-   * @param timeout Timeout(seconds) to wait ARP response.
-   * @return MACAddr The MAC address of the target device.
+   * This function sends ARP requests to a specified IP address and waits for the ARP reply to retrieve the MAC address.
+   * The function will keep sending ARP requests until an ARP reply is received or the specified timeout is reached.
+   *
+   * @param ip_addr The IPv4 address for which the MAC address is to be retrieved.
+   * @param timeout The timeout period (in seconds) to wait for the ARP reply.
+   * @return The MAC address associated with the specified IPv4 address.
+   *
+   * @throws std::invalid_argument if the IP address is not reachable or not in the same network.
+   * @throws std::runtime_error if there is a failure in retrieving network interface information, creating or binding the socket, sending/receiving ARP packets, or if the ARP reply is not received within the timeout period.
    */
   static MACAddr get_mac_addr(IPv4Addr ip_addr, int timeout=1);
+
+  /**
+   * @brief Sends ARP requests to a list of IP addresses and retrieves their MAC addresses.
+   *
+   * This function sends ARP requests to a list of IP addresses and invokes a callback function
+   * with the IP address and its corresponding MAC address upon receiving an ARP reply.
+   *
+   * @param ip_addrs A list of IP addresses to retrieve MAC addresses for. The list must contain at least one item.
+   * @param callback A callback function to invoke with the IP address and its corresponding MAC address.
+   * @param batch The number of IP addresses to process in each batch. Must be greater than 0. Default is 50.
+   * @param retries The number of times to retry sending ARP requests for each batch. Must be greater than 0. Default is 3.
+   *
+   * @throws std::invalid_argument if the IP list is empty, batch size is less than 1, or retry count is less than 1.
+   * @throws std::runtime_error if there is a failure in retrieving network interface information, creating or binding the socket, or sending/receiving ARP packets.
+   */
+  static void get_mac_addr(std::list<IPv4Addr> ip_addrs, std::function<void(IPv4Addr, MACAddr)> callback, int batch=50, int retries=3);
   /**
    * @brief Generate ARP packet.
    *
