@@ -211,14 +211,6 @@ void ARP::get_mac_addr(std::list<IPv4Addr> ip_addrs, std::function<void(IPv4Addr
       FD_SET(sock, &read_fds);
       while (!stop_thread) {
         ARP reply;
-        int retval = select(sock + 1, &read_fds, NULL, NULL, NULL);
-        if (retval == -1) {
-          stop_thread = true;
-          throw runtime_error("select(): " + string(strerror(errno)));
-        }
-        else if (retval == 0) {
-          break;
-        }
         auto n = recvfrom(sock, &reply, sizeof(reply), 0, NULL, NULL);
         if (n < 0) {
           if (errno == EWOULDBLOCK || errno == EAGAIN)
@@ -296,7 +288,6 @@ void ARP::get_mac_addr(std::list<IPv4Addr> ip_addrs, std::function<void(IPv4Addr
         stop_thread = true;
         receive_thread.join();
         close(sock);
-        callback(0, 0);
     } catch (...) {
         stop_thread = true;
         if (receive_thread.joinable()) {

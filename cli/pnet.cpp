@@ -124,19 +124,10 @@ int arpscan(string interface) {
     list<IPv4Addr> ip_list;
     for (auto ip = ip_range.first; ip <= ip_range.second; ip++)
         ip_list.push_back(ip);
-    bool scan_finished = false;
     auto callback = [&](IPv4Addr ip, MACAddr mac) {
-        if (ip == 0) {
-            scan_finished = true;
-            return;
-        }
         cout << (string)ip << " " << (string)mac << endl;
     };
     ARP::get_mac_addr(ip_list, callback);
-    while (!scan_finished) {
-        cout << "Waiting" << endl;
-        this_thread::sleep_for(chrono::milliseconds(50)); // Avoid busy-wait
-    }
     return 0;
 }
 
